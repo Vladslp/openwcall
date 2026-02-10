@@ -1,39 +1,91 @@
 import { prisma } from "../src/client";
 import bcrypt from "bcryptjs";
 
-async function main() {
-  const email = "demo@openwcall.dev";
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (!existing) {
-    const passwordHash = await bcrypt.hash("demo1234", 10);
-    const user = await prisma.user.create({
-      data: {
-        email,
-        name: "Demo User",
-        passwordHash,
-        avatarUrl: "https://api.dicebear.com/7.x/shapes/svg?seed=OpenWCall"
-      }
-    });
-    await prisma.room.create({
-      data: {
-        name: "OpenWCall Lobby",
-        isPublic: true,
-        hostId: user.id
-      }
-    });
-    return;
-  }
+function normalizeNickname(nickname: string) {
+  return nickname.trim().toLowerCase();
+}
 
-  const roomExists = await prisma.room.findFirst({ where: { name: "OpenWCall Lobby" } });
-  if (!roomExists) {
-    await prisma.room.create({
-      data: {
-        name: "OpenWCall Lobby",
-        isPublic: true,
-        hostId: existing.id
-      }
-    });
-  }
+async function upsertDemoUser(email: string, name: string, nickname: string) {
+  const passwordHash = await bcrypt.hash("demo1234", 10);
+  return prisma.user.upsert({
+    where: { email },
+    update: {
+      name,
+      nickname,
+      nicknameLower: normalizeNickname(nickname),
+      passwordHash
+    },
+    create: {
+      email,
+      name,
+      nickname,
+      nicknameLower: normalizeNickname(nickname),
+      passwordHash,
+      avatarUrl: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(name)}`
+    }
+  });
+}
+
+async function main() {
+  const alice = await upsertDemoUser("demo@openwcall.dev", "Demo User", "demo.user");
+  const bob = await upsertDemoUser("sam@openwcall.dev", "Sam Wave", "sam.wave");
+
+  const room = await prisma.room.upsert({
+    where: { id: "demo-room-id" },
+    update: { name: "OpenWCall Lobby", hostId: alice.id },
+    create: {
+      id: "demo-room-id",
+      name: "OpenWCall Lobby",
+      isPublic: true,
+      hostId: alice.id
+    }
+  });
+
+  const [userAId, userBId] = [alice.id, bob.id].sort();
+
+  await prisma.friendship.upsert({
+    where: {
+      userAId_userBId: { userAId, userBId }
+    },
+    update: {},
+    create: {
+      userAId,
+      userBId
+    }
+  });
+
+  await prisma.friendRequest.upsert({
+    where: { id: "demo-pending-request" },
+    update: {},
+    create: {
+      id: "demo-pending-request",
+      fromUserId: bob.id,
+      toUserId: alice.id,
+      status: "pending"
+    }
+  });
+
+  const thread = await prisma.dMThread.upsert({
+    where: { userAId_userBId: { userAId, userBId } },
+    update: { lastMessageAt: new Date() },
+    create: { userAId, userBId, lastMessageAt: new Date() }
+  });
+
+  await prisma.message.create({
+    data: {
+      threadId: thread.id,
+      senderId: alice.id,
+      body: "Hey Sam, welcome to Voxa DM!"
+    }
+  });
+
+  await prisma.message.create({
+    data: {
+      roomId: room.id,
+      senderId: bob.id,
+      body: "Room text chat seeded and ready."
+    }
+  });
 }
 
 main()

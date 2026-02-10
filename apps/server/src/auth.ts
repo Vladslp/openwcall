@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "node:crypto";
 import { prisma } from "@openwcall/db";
+import { normalizeNickname } from "./social";
 
 export interface JwtPayload {
   sub: string;

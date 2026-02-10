@@ -1,39 +1,40 @@
-# OpenWCall
+# OpenWCall (Voxa)
 
-OpenWCall is a production-ready WebRTC voice calling platform with rooms, direct calls, presence, and moderation. It uses a lightweight mesh topology (up to 6 participants by default) and a Socket.IO signaling server.
+OpenWCall is a WebRTC voice-calling app with rooms, direct calls, and now Discord/Skype-style social messaging features.
 
-## Requirements
+## New features
 
-- Node.js 20+
-- pnpm 9+
-- Docker (optional, for local dev stack)
-- PostgreSQL 15+
+- Unique nicknames/handles (`3-24`, `a-z A-Z 0-9 _ . -`, case-insensitive uniqueness).
+- User search by nickname.
+- Friend requests and friend list.
+- Persistent DM threads and message history.
+- Room text chat history + real-time room messages.
+- Message + call flow (start direct calls from social sidebar).
+- In-app notifications for friend requests / DM messages.
 
-## Repository structure
+## Stack
 
-```
-/apps/web     # Next.js web app
-/apps/server  # Fastify + Socket.IO signaling + auth
-/packages/shared # Shared types + zod schemas
-/packages/db  # Prisma schema + client
-```
+- `apps/web`: Next.js App Router UI
+- `apps/server`: Fastify + Socket.IO signaling/auth/social events
+- `packages/shared`: shared socket event names + zod schemas
+- `packages/db`: Prisma schema/client/migrations/seed
 
 ## Environment variables
 
 ### Server (`apps/server/.env.example`)
 
-- `DATABASE_URL`: PostgreSQL connection string.
-- `JWT_SECRET`: Secret used to sign access tokens.
-- `PORT`: Server port (default 4000).
-- `WEB_ORIGIN`: Allowed web origin for CORS.
-- `TURN_URL`, `TURN_USER`, `TURN_PASS`: Optional TURN config.
+- `DATABASE_URL`: PostgreSQL DSN.
+- `JWT_SECRET`: JWT signing key.
+- `PORT`: API/socket port (default `4000`).
+- `WEB_ORIGIN`: allowed web origin.
+- `TURN_URL`, `TURN_USER`, `TURN_PASS`: optional TURN credentials.
 
 ### Web (`apps/web/.env.example`)
 
-- `NEXT_PUBLIC_SERVER_URL`: Server URL (default http://localhost:4000).
-- `NEXT_PUBLIC_TURN_URL`, `NEXT_PUBLIC_TURN_USER`, `NEXT_PUBLIC_TURN_PASS`: Optional TURN config.
+- `NEXT_PUBLIC_SERVER_URL`: signaling/api server URL.
+- `NEXT_PUBLIC_TURN_URL`, `NEXT_PUBLIC_TURN_USER`, `NEXT_PUBLIC_TURN_PASS`: optional TURN config.
 
-## Local development
+## Local dev
 
 ```bash
 pnpm install
@@ -43,62 +44,19 @@ pnpm --filter @openwcall/db prisma:seed
 pnpm dev
 ```
 
-- Web: http://localhost:3000
-- Server: http://localhost:4000
+- web: `http://localhost:3000`
+- server: `http://localhost:4000`
 
-### Docker compose
+## Socket events
 
-```bash
-docker compose up --build
-```
+See:
+- `packages/shared/src/events.ts`
+- `packages/shared/src/schemas.ts`
 
-## Signaling protocol
+All events are zod-validated on server and client payload contracts.
 
-All events are validated with zod on both client and server. Event names live in `packages/shared/src/events.ts` and schemas in `packages/shared/src/schemas.ts`.
-
-Client → Server:
-- `auth:hello`
-- `presence:set`
-- `room:create`
-- `room:join`
-- `room:leave`
-- `call:direct:invite`
-- `call:direct:accept`
-- `call:direct:decline`
-- `webrtc:offer`
-- `webrtc:answer`
-- `webrtc:ice`
-- `room:host:mute`
-- `room:host:kick`
-- `room:host:lock`
-
-Server → Client:
-- `auth:ok`
-- `presence:list`
-- `room:list`
-- `room:joined`
-- `room:participant:joined`
-- `room:participant:left`
-- `call:direct:incoming`
-- `call:direct:state`
-- `webrtc:signal:error`
-- `room:host:action`
-- `error`
-
-## Security notes
-
-- WebRTC requires HTTPS in production (except localhost).
-- All Socket.IO events are validated with zod.
-- Basic in-memory rate limiting is applied per socket.
-- Only authenticated users can join rooms.
-
-## TURN guidance
-
-By default, the app uses the public Google STUN server. For production reliability behind NATs, configure a TURN server (e.g., coturn) and set the TURN env vars.
-
-## Tests
+## Test
 
 ```bash
-pnpm --filter @openwcall/shared test
-pnpm --filter @openwcall/server test
+pnpm -w test
 ```
