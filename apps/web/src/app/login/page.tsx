@@ -21,7 +21,7 @@ export default function LoginPage() {
         ? await registerUser(form)
         : await loginUser({ email: form.email, password: form.password });
       setSession({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user });
-      router.push("/lobby");
+      router.push("/app");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to login");
     }

@@ -12,7 +12,19 @@ export const ClientToServerEvents = {
   webrtcIce: "webrtc:ice",
   roomHostMute: "room:host:mute",
   roomHostKick: "room:host:kick",
-  roomHostLock: "room:host:lock"
+  roomHostLock: "room:host:lock",
+  userNicknameSet: "user:nickname:set",
+  userSearch: "user:search",
+  friendsRequestSend: "friends:request:send",
+  friendsRequestRespond: "friends:request:respond",
+  friendsList: "friends:list",
+  dmThreadGetOrCreate: "dm:thread:getOrCreate",
+  dmThreadList: "dm:thread:list",
+  dmHistory: "dm:history",
+  dmSend: "dm:send",
+  roomChatHistory: "room:chat:history",
+  roomChatSend: "room:chat:send",
+  notificationsRead: "notifications:read"
 } as const;
 
 export const ServerToClientEvents = {
@@ -29,6 +41,17 @@ export const ServerToClientEvents = {
   webrtcIce: "webrtc:ice",
   webrtcSignalError: "webrtc:signal:error",
   roomHostAction: "room:host:action",
+  userNicknameOk: "user:nickname:ok",
+  userSearchResult: "user:search:result",
+  friendsRequests: "friends:requests",
+  friendsList: "friends:list",
+  friendsRequestUpdate: "friends:request:update",
+  dmThreadList: "dm:thread:list",
+  dmMessageNew: "dm:message:new",
+  dmHistory: "dm:history",
+  roomChatMessage: "room:chat:message",
+  roomChatHistory: "room:chat:history",
+  notificationNew: "notification:new",
   error: "error"
 } as const;
 

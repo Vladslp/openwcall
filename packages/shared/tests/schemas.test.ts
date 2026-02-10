@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { roomCreateSchema, webrtcOfferSchema } from "../src/schemas";
+import { roomCreateSchema, userNicknameSetSchema, webrtcOfferSchema } from "../src/schemas";
 
 describe("schemas", () => {
   it("validates room create", () => {
@@ -8,6 +8,11 @@ describe("schemas", () => {
       isPublic: true
     });
     expect(result.success).toBe(true);
+  });
+
+  it("validates nickname rules", () => {
+    expect(userNicknameSetSchema.safeParse({ nickname: "good.name" }).success).toBe(true);
+    expect(userNicknameSetSchema.safeParse({ nickname: "??" }).success).toBe(false);
   });
 
   it("rejects invalid offer", () => {

@@ -1,7 +1,20 @@
 import { z } from "zod";
 
+export const nicknameRegex = /^[a-zA-Z0-9._-]{3,24}$/;
+
 export const authHelloSchema = z.object({
   token: z.string().min(1)
+});
+
+
+export const authOkSchema = z.object({
+  user: z.object({
+    id: z.string(),
+    name: z.string(),
+    nickname: z.string().optional().nullable(),
+    email: z.string(),
+    avatarUrl: z.string().url().optional().nullable()
+  })
 });
 
 export const presenceSetSchema = z.object({
@@ -19,21 +32,10 @@ export const roomJoinSchema = z.object({
   password: z.string().min(1).max(64).optional()
 });
 
-export const roomLeaveSchema = z.object({
-  roomId: z.string().min(1)
-});
-
-export const directInviteSchema = z.object({
-  toUserId: z.string().min(1)
-});
-
-export const directAcceptSchema = z.object({
-  callId: z.string().min(1)
-});
-
-export const directDeclineSchema = z.object({
-  callId: z.string().min(1)
-});
+export const roomLeaveSchema = z.object({ roomId: z.string().min(1) });
+export const directInviteSchema = z.object({ toUserId: z.string().min(1) });
+export const directAcceptSchema = z.object({ callId: z.string().min(1) });
+export const directDeclineSchema = z.object({ callId: z.string().min(1) });
 
 export const webrtcOfferSchema = z.object({
   peerId: z.string().min(1),
@@ -42,12 +44,7 @@ export const webrtcOfferSchema = z.object({
   sdp: z.string().min(1)
 });
 
-export const webrtcAnswerSchema = z.object({
-  peerId: z.string().min(1),
-  roomId: z.string().min(1).optional(),
-  callId: z.string().min(1).optional(),
-  sdp: z.string().min(1)
-});
+export const webrtcAnswerSchema = webrtcOfferSchema;
 
 export const webrtcIceSchema = z.object({
   peerId: z.string().min(1),
@@ -72,100 +69,62 @@ export const roomHostLockSchema = z.object({
   locked: z.boolean()
 });
 
-export const authOkSchema = z.object({
-  user: z.object({
-    id: z.string(),
-    name: z.string(),
-    email: z.string(),
-    avatarUrl: z.string().url().optional().nullable()
+export const userNicknameSetSchema = z.object({
+  nickname: z.string().trim().regex(nicknameRegex)
+});
+
+export const userSearchSchema = z.object({
+  query: z.string().trim().min(1).max(24),
+  limit: z.number().int().min(1).max(20).default(10)
+});
+
+export const friendsRequestSendSchema = z.object({ toNickname: z.string().trim().min(3).max(24) });
+export const friendsRequestRespondSchema = z.object({
+  requestId: z.string().min(1),
+  action: z.enum(["accept", "decline"])
+});
+
+export const dmThreadGetOrCreateSchema = z
+  .object({
+    withUserId: z.string().min(1).optional(),
+    withNickname: z.string().trim().min(3).max(24).optional()
   })
+  .refine((data) => !!data.withUserId || !!data.withNickname, "withUserId or withNickname required");
+
+export const dmThreadListSchema = z.object({});
+
+export const cursorSchema = z.object({
+  createdAt: z.string().datetime(),
+  id: z.string().min(1)
 });
 
-export const presenceListSchema = z.object({
-  usersOnline: z.array(
-    z.object({
-      userId: z.string(),
-      name: z.string(),
-      avatarUrl: z.string().url().optional().nullable(),
-      status: z.enum(["online", "away"]) 
-    })
-  )
+export const dmHistorySchema = z.object({
+  threadId: z.string().min(1),
+  cursor: cursorSchema.optional(),
+  limit: z.number().int().min(1).max(100).default(30)
 });
 
-export const roomListSchema = z.object({
-  rooms: z.array(
-    z.object({
-      roomId: z.string(),
-      name: z.string(),
-      isPublic: z.boolean(),
-      locked: z.boolean(),
-      count: z.number().int().min(0)
-    })
-  )
+export const messageBodySchema = z.string().trim().min(1).max(2000);
+
+export const dmSendSchema = z.object({
+  threadId: z.string().min(1),
+  body: messageBodySchema,
+  clientMsgId: z.string().min(1).max(64)
 });
 
-export const roomJoinedSchema = z.object({
-  room: z.object({
-    roomId: z.string(),
-    name: z.string(),
-    isPublic: z.boolean(),
-    locked: z.boolean(),
-    hostId: z.string()
-  }),
-  participants: z.array(
-    z.object({
-      userId: z.string(),
-      name: z.string(),
-      avatarUrl: z.string().url().optional().nullable(),
-      muted: z.boolean()
-    })
-  )
+export const roomChatHistorySchema = z.object({
+  roomId: z.string().min(1),
+  cursor: cursorSchema.optional(),
+  limit: z.number().int().min(1).max(100).default(30)
 });
 
-export const roomParticipantJoinedSchema = z.object({
-  roomId: z.string(),
-  user: z.object({
-    userId: z.string(),
-    name: z.string(),
-    avatarUrl: z.string().url().optional().nullable(),
-    muted: z.boolean()
-  })
+export const roomChatSendSchema = z.object({
+  roomId: z.string().min(1),
+  body: messageBodySchema,
+  clientMsgId: z.string().min(1).max(64)
 });
 
-export const roomParticipantLeftSchema = z.object({
-  roomId: z.string(),
-  userId: z.string()
-});
-
-export const callDirectIncomingSchema = z.object({
-  callId: z.string(),
-  fromUser: z.object({
-    userId: z.string(),
-    name: z.string(),
-    avatarUrl: z.string().url().optional().nullable()
-  })
-});
-
-export const callDirectStateSchema = z.object({
-  callId: z.string(),
-  state: z.enum(["ringing", "connected", "ended"]),
-  reason: z.string().optional()
-});
-
-export const webrtcSignalErrorSchema = z.object({
-  message: z.string()
-});
-
-export const roomHostActionSchema = z.object({
-  roomId: z.string(),
-  action: z.enum(["mute", "kick", "lock"]),
-  targetUserId: z.string().optional()
-});
-
-export const errorSchema = z.object({
-  code: z.string(),
-  message: z.string()
-});
+export const notificationsReadSchema = z.object({ ids: z.array(z.string().min(1)).max(100) });
 
 export type AuthHelloPayload = z.infer<typeof authHelloSchema>;
 export type PresenceSetPayload = z.infer<typeof presenceSetSchema>;
