@@ -1,0 +1,17 @@
+{
+  "name": "@openwcall/shared",
+  "version": "0.1.0",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "lint": "echo 'no lint configured'",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "vitest": "^1.6.0",
+    "typescript": "^5.4.5"
+  }
+}
