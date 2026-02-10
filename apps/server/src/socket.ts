@@ -317,7 +317,7 @@ export function registerSocket(app: FastifyInstance, state: ServerState) {
     });
 
     socket.on(ClientToServerEvents.roomJoin, async (payload) => { if (!bucket.consume()) return; const parsed = roomJoinSchema.safeParse(payload); if (!parsed.success) return; const user = state.usersBySocket.get(socket.id); if (!user) return; const room = await ensureRoomState(state, parsed.data.roomId); if (!room) return; if (room.locked) return; if (room.passwordHash) { const ok = parsed.data.password ? await bcrypt.compare(parsed.data.password, room.passwordHash) : false; if (!ok) return; } socket.join(room.roomId); room.participants.set(user.userId, { userId: user.userId, name: user.name, avatarUrl: user.avatarUrl, muted: false }); socket.emit(ServerToClientEvents.roomJoined, { roomId: room.roomId, participants: [...room.participants.values()] }); socket.to(room.roomId).emit(ServerToClientEvents.roomParticipantJoined, { roomId: room.roomId, user: { userId: user.userId, name: user.name, avatarUrl: user.avatarUrl, muted: false } }); io.emit(ServerToClientEvents.roomList, { rooms: state.getRoomList() }); await prisma.roomMembershipHistory.create({ data: { roomId: room.roomId, userId: user.userId } }); });
-    socket.on(ClientToServerEvents.roomLeave, async (payload) => { const parsed = roomLeaveSchema.safeParse(payload); if (!parsed.success) return; const user = state.usersBySocket.get(socket.id); if (!user) return; const room = state.rooms.get(parsed.data.roomId); if (!room) return; room.participants.delete(user.userId); socket.leave(room.roomId); socket.to(room.roomId).emit(ServerToClientEvents.roomParticipantLeft, { roomId: room.roomId, userId: user.userId }); });
+    socket.on(ClientToServerEvents.roomLeave, async (payload) => { const parsed = roomLeaveSchema.safeParse(payload); if (!parsed.success) return; const user = state.usersBySocket.get(socket.id); if (!user) return; removeUserFromRoom(io, parsed.data.roomId, user.userId, socket, state); });
 
     socket.on(ClientToServerEvents.callDirectInvite, (payload) => {
       const parsed = directInviteSchema.safeParse(payload); if (!parsed.success) return;
@@ -341,7 +341,16 @@ export function registerSocket(app: FastifyInstance, state: ServerState) {
     socket.on(ClientToServerEvents.roomHostKick, (payload) => { const parsed = roomHostKickSchema.safeParse(payload); if (!parsed.success) return; const room = state.rooms.get(parsed.data.roomId); if (!room || room.hostId !== state.usersBySocket.get(socket.id)?.userId) return; room.participants.delete(parsed.data.targetUserId); });
     socket.on(ClientToServerEvents.roomHostLock, (payload) => { const parsed = roomHostLockSchema.safeParse(payload); if (!parsed.success) return; const room = state.rooms.get(parsed.data.roomId); if (!room || room.hostId !== state.usersBySocket.get(socket.id)?.userId) return; room.locked = parsed.data.locked; });
 
-    socket.on("disconnect", () => { const user = state.usersBySocket.get(socket.id); if (!user) return; state.usersBySocket.delete(socket.id); state.socketByUserId.delete(user.userId); });
+    socket.on("disconnect", () => {
+      const user = state.usersBySocket.get(socket.id);
+      if (!user) return;
+      for (const room of state.rooms.values()) {
+        if (!room.participants.has(user.userId)) continue;
+        removeUserFromRoom(io, room.roomId, user.userId, socket, state);
+      }
+      state.usersBySocket.delete(socket.id);
+      state.socketByUserId.delete(user.userId);
+    });
   });
 
   return io;
@@ -379,8 +388,10 @@ function formatMessage(message: { id: string; body: string | null; createdAt: Da
 
 function emitMessageUpdate(io: Server, state: ServerState, message: { id: string; threadId: string | null; roomId: string | null; body: string | null; deleted: boolean; editedAt: Date | null; createdAt: Date; sender: { id: string; nickname: string | null; avatarUrl: string | null }; reactions: { emoji: string; userId: string }[] }) {
   const data = { message: formatMessage(message) };
-  io.emit(ServerToClientEvents.msgUpdated, data);
-  if (message.roomId) io.to(message.roomId).emit(ServerToClientEvents.msgUpdated, data);
+  if (message.roomId) {
+    io.to(message.roomId).emit(ServerToClientEvents.msgUpdated, data);
+    return;
+  }
   if (message.threadId) {
     prisma.dMThread.findUnique({ where: { id: message.threadId } }).then((thread) => {
       if (!thread) return;
@@ -390,6 +401,15 @@ function emitMessageUpdate(io: Server, state: ServerState, message: { id: string
       if (s2 && s2 !== s1) io.to(s2).emit(ServerToClientEvents.msgUpdated, data);
     });
   }
+}
+
+function removeUserFromRoom(io: Server, roomId: string, userId: string, socket: Socket, state: ServerState) {
+  const room = state.rooms.get(roomId);
+  if (!room || !room.participants.has(userId)) return;
+  room.participants.delete(userId);
+  socket.leave(room.roomId);
+  socket.to(room.roomId).emit(ServerToClientEvents.roomParticipantLeft, { roomId: room.roomId, userId });
+  io.emit(ServerToClientEvents.roomList, { rooms: state.getRoomList() });
 }
 
 async function listThreads(userId: string) {
