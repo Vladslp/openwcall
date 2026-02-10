@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  roomsHosted  Room[]   @relation("RoomHost")
+  refreshTokens RefreshToken[]
+}
+
+model Room {
+  id           String   @id @default(cuid())
+  name         String
+  isPublic     Boolean  @default(true)
+  passwordHash String?
+  locked       Boolean  @default(false)
+  hostId       String
+  createdAt    DateTime @default(now())
+  host         User     @relation("RoomHost", fields: [hostId], references: [id])
+}
+
+model RefreshToken {
+  id         String   @id @default(cuid())
+  tokenHash  String
+  userId     String
+  createdAt  DateTime @default(now())
+  revokedAt  DateTime?
+  user       User     @relation(fields: [userId], references: [id])
+}
+
+model RoomMembershipHistory {
+  id        String   @id @default(cuid())
+  roomId    String
+  userId    String
+  joinedAt  DateTime @default(now())
+  leftAt    DateTime?
+}
