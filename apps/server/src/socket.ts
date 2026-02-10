@@ -246,7 +246,7 @@ export function registerSocket(app: FastifyInstance, state: ServerState) {
       const parsed = roomChatSendSchema.safeParse(payload); if (!parsed.success) return;
       const user = state.usersBySocket.get(socket.id); if (!user) return;
       const room = state.rooms.get(parsed.data.roomId);
-      if (!room || !canSendRoomChat(new Set(room.participants.keys()), user.userId)) return;
+      if (!room || !canSendRoomChat(room.participants, user.userId)) return;
       const cleanBody = escapeHtml(sanitizeMessageInput(parsed.data.body));
       if (!cleanBody) return socket.emit(ServerToClientEvents.error, { code: "invalid_message", message: "Empty message" });
       const message = await prisma.message.create({ data: { roomId: room.roomId, senderId: user.userId, body: cleanBody }, include: { sender: { select: { id: true, nickname: true, avatarUrl: true } }, reactions: true } });

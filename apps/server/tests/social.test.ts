@@ -28,14 +28,16 @@ describe("social helpers", () => {
   });
 
   it("checks room message permissions", () => {
-    expect(canSendRoomChat(new Set(["u1"]), "u1")).toBe(true);
-    expect(canSendRoomChat(new Set(["u1"]), "u2")).toBe(false);
+    const participants = new Map([["u1", { muted: false }]]);
+    expect(canSendRoomChat(participants, "u1")).toBe(true);
+    expect(canSendRoomChat(participants, "u2")).toBe(false);
   });
 
   it("enforces message edit/delete permissions", () => {
     const createdAt = new Date("2026-01-01T00:00:00.000Z");
     expect(canEditMessage({ senderId: "u1", createdAt }, "u1", new Date("2026-01-01T00:10:00.000Z"))).toBe(true);
     expect(canEditMessage({ senderId: "u1", createdAt }, "u1", new Date("2026-01-01T00:20:00.000Z"))).toBe(false);
+    expect(canEditMessage({ senderId: "u1", createdAt }, "u1", new Date("2025-12-31T23:59:59.000Z"))).toBe(false);
     expect(canDeleteMessage({ senderId: "u1" }, "u1")).toBe(true);
     expect(canDeleteMessage({ senderId: "u1" }, "u2")).toBe(false);
   });
