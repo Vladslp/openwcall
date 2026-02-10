@@ -116,6 +116,8 @@ export function registerSocket(app: FastifyInstance, state: ServerState) {
       if (!bucket.consume()) return;
       const parsed = userSearchSchema.safeParse(payload);
       if (!parsed.success) return;
+      const current = state.usersBySocket.get(socket.id);
+      if (!current) return;
       const query = normalizeNickname(parsed.data.query);
       const users = await prisma.user.findMany({
         where: { nicknameLower: { contains: query } },
