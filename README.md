@@ -1,16 +1,18 @@
 # OpenWCall
 
-OpenWCall is a WebRTC voice-calling app with rooms, direct calls, and now Discord/Skype-style social messaging features.
+OpenWCall is a WebRTC voice-calling app with rooms, direct calls, and Discord/Skype-style social messaging features.
 
 ## New features
 
-- Unique nicknames/handles (`3-24`, `a-z A-Z 0-9 _ . -`, case-insensitive uniqueness).
-- User search by nickname.
-- Friend requests and friend list.
-- Persistent DM threads and message history.
-- Room text chat history + real-time room messages.
-- Message + call flow (start direct calls from social sidebar).
-- In-app notifications for friend requests / DM messages.
+- Delivery states for DM + room chat (sending/sent/failed) with ACK and retry.
+- Message edit (15 min), soft-delete, and emoji reactions.
+- DM typing indicator and paginated chat history.
+- Friend tabs (Online/All/Pending), friend remove quick action.
+- Busy call handling + persistent call mini-bar.
+- Notification center with DB persistence + read/unread state.
+- Mention detection (`@nickname`) in room chat + mention notifications.
+- Server-side rate limits for chat, typing, reactions.
+- Input sanitization/escaping for safer rendering.
 
 ## Stack
 
@@ -44,16 +46,11 @@ pnpm --filter @openwcall/db prisma:seed
 pnpm dev
 ```
 
-- web: `http://localhost:3000`
-- server: `http://localhost:4000`
-
 ## Socket events
 
 See:
 - `packages/shared/src/events.ts`
 - `packages/shared/src/schemas.ts`
-
-All events are zod-validated on server and client payload contracts.
 
 ## Test
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { roomCreateSchema, userNicknameSetSchema, webrtcOfferSchema } from "../src/schemas";
+import { msgReactSchema, roomCreateSchema, userNicknameSetSchema, webrtcOfferSchema } from "../src/schemas";
 
 describe("schemas", () => {
   it("validates room create", () => {
@@ -21,5 +21,10 @@ describe("schemas", () => {
       sdp: ""
     });
     expect(result.success).toBe(false);
+  });
+
+  it("validates supported reaction emoji only", () => {
+    expect(msgReactSchema.safeParse({ messageId: "m1", emoji: "👍", add: true }).success).toBe(true);
+    expect(msgReactSchema.safeParse({ messageId: "m1", emoji: "🔥", add: true }).success).toBe(false);
   });
 });

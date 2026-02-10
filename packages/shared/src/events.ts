@@ -18,12 +18,17 @@ export const ClientToServerEvents = {
   friendsRequestSend: "friends:request:send",
   friendsRequestRespond: "friends:request:respond",
   friendsList: "friends:list",
+  friendsRemove: "friends:remove",
   dmThreadGetOrCreate: "dm:thread:getOrCreate",
   dmThreadList: "dm:thread:list",
   dmHistory: "dm:history",
   dmSend: "dm:send",
+  dmTyping: "dm:typing",
   roomChatHistory: "room:chat:history",
   roomChatSend: "room:chat:send",
+  msgEdit: "msg:edit",
+  msgDelete: "msg:delete",
+  msgReact: "msg:react",
   notificationsRead: "notifications:read"
 } as const;
 
@@ -49,8 +54,14 @@ export const ServerToClientEvents = {
   dmThreadList: "dm:thread:list",
   dmMessageNew: "dm:message:new",
   dmHistory: "dm:history",
+  dmSendAck: "dm:send:ack",
+  dmTyping: "dm:typing",
   roomChatMessage: "room:chat:message",
   roomChatHistory: "room:chat:history",
+  roomChatSendAck: "room:chat:send:ack",
+  msgUpdated: "msg:updated",
+  msgReactionUpdate: "msg:reaction:update",
+  notificationList: "notification:list",
   notificationNew: "notification:new",
   error: "error"
 } as const;
