@@ -283,8 +283,12 @@ export function registerSocket(app: FastifyInstance, state: ServerState) {
       if (!parsed.success) return;
       const call = state.directCalls.get(parsed.data.callId);
       if (!call) return;
+      const accepter = state.usersBySocket.get(socket.id);
+      if (!accepter) return;
+      if (call.toUserId !== accepter.userId) return;
+      if (call.state !== "ringing") return;
       call.state = "connected";
-      notifyCallState(io, call.callId, "connected");
+      notifyCallState(io, state, call.callId, "connected");
     });
 
     socket.on(ClientToServerEvents.callDirectDecline, (payload) => {
@@ -294,7 +298,7 @@ export function registerSocket(app: FastifyInstance, state: ServerState) {
       const call = state.directCalls.get(parsed.data.callId);
       if (!call) return;
       call.state = "ended";
-      notifyCallState(io, call.callId, "ended", "declined");
+      notifyCallState(io, state, call.callId, "ended", "declined");
       state.directCalls.delete(call.callId);
     });
 
@@ -419,12 +423,31 @@ function forwardSignal(
   socket.to(targetSocketId).emit(eventName, parsed.data);
 }
 
-function notifyCallState(io: Server, callId: string, state: "ringing" | "connected" | "ended", reason?: string) {
-  io.emit(ServerToClientEvents.callDirectState, {
+function notifyCallState(
+  io: Server,
+  state: ServerState,
+  callId: string,
+  callState: "ringing" | "connected" | "ended",
+  reason?: string
+) {
+  const call = state.directCalls.get(callId);
+  if (!call) return;
+
+  const payload = {
     callId,
-    state,
+    state: callState,
     reason
-  });
+  };
+
+  const callerSocketId = state.socketByUserId.get(call.fromUserId);
+  if (callerSocketId) {
+    io.to(callerSocketId).emit(ServerToClientEvents.callDirectState, payload);
+  }
+
+  const calleeSocketId = state.socketByUserId.get(call.toUserId);
+  if (calleeSocketId && calleeSocketId !== callerSocketId) {
+    io.to(calleeSocketId).emit(ServerToClientEvents.callDirectState, payload);
+  }
 }
 
 function createTokenBucket(limit: number, windowMs: number) {
