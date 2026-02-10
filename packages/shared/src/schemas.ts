@@ -84,6 +84,8 @@ export const friendsRequestRespondSchema = z.object({
   action: z.enum(["accept", "decline"])
 });
 
+export const friendsRemoveSchema = z.object({ userId: z.string().min(1) });
+
 export const dmThreadGetOrCreateSchema = z
   .object({
     withUserId: z.string().min(1).optional(),
@@ -112,6 +114,11 @@ export const dmSendSchema = z.object({
   clientMsgId: z.string().min(1).max(64)
 });
 
+export const dmTypingSchema = z.object({
+  threadId: z.string().min(1),
+  isTyping: z.boolean()
+});
+
 export const roomChatHistorySchema = z.object({
   roomId: z.string().min(1),
   cursor: cursorSchema.optional(),
@@ -124,6 +131,23 @@ export const roomChatSendSchema = z.object({
   clientMsgId: z.string().min(1).max(64)
 });
 
+export const msgEditSchema = z.object({
+  messageId: z.string().min(1),
+  body: messageBodySchema
+});
+
+export const msgDeleteSchema = z.object({
+  messageId: z.string().min(1)
+});
+
+export const emojiSchema = z.enum(["👍", "❤️", "😂", "😮", "😭", "👎"]);
+
+export const msgReactSchema = z.object({
+  messageId: z.string().min(1),
+  emoji: emojiSchema,
+  add: z.boolean()
+});
+
 export const notificationsReadSchema = z.object({ ids: z.array(z.string().min(1)).max(100) });
 
 export type AuthHelloPayload = z.infer<typeof authHelloSchema>;
@@ -134,9 +158,5 @@ export type RoomLeavePayload = z.infer<typeof roomLeaveSchema>;
 export type DirectInvitePayload = z.infer<typeof directInviteSchema>;
 export type DirectAcceptPayload = z.infer<typeof directAcceptSchema>;
 export type DirectDeclinePayload = z.infer<typeof directDeclineSchema>;
-export type WebrtcOfferPayload = z.infer<typeof webrtcOfferSchema>;
-export type WebrtcAnswerPayload = z.infer<typeof webrtcAnswerSchema>;
-export type WebrtcIcePayload = z.infer<typeof webrtcIceSchema>;
-export type RoomHostMutePayload = z.infer<typeof roomHostMuteSchema>;
-export type RoomHostKickPayload = z.infer<typeof roomHostKickSchema>;
-export type RoomHostLockPayload = z.infer<typeof roomHostLockSchema>;
+export type UserNicknameSetPayload = z.infer<typeof userNicknameSetSchema>;
+export type UserSearchPayload = z.infer<typeof userSearchSchema>;
