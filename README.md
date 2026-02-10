@@ -1,4 +1,4 @@
-# OpenWCall (Voxa)
+# OpenWCall
 
 OpenWCall is a WebRTC voice-calling app with rooms, direct calls, and now Discord/Skype-style social messaging features.
 
