@@ -18,22 +18,37 @@ export function registerAuthRoutes(app: FastifyInstance) {
     "/auth/register",
     async (request, reply) => {
       const body = request.body as { email: string; name: string; password: string };
-      if (!body?.email || !body?.name || !body?.password) {
+      const email = body?.email?.trim().toLowerCase();
+      const name = body?.name?.trim();
+      const password = body?.password;
+
+      if (!email || !name || !password) {
         return reply.status(400).send({ message: "Invalid payload" });
       }
 
-      const existing = await prisma.user.findUnique({ where: { email: body.email } });
+      if (password.length < 6) {
+        return reply.status(400).send({ message: "Password must be at least 6 characters" });
+      }
+
+      const nicknameLower = normalizeNickname(name);
+
+      const existing = await prisma.user.findUnique({ where: { email } });
       if (existing) {
         return reply.status(409).send({ message: "Email already registered" });
       }
 
-      const passwordHash = await bcrypt.hash(body.password, 10);
+      const nicknameOwner = await prisma.user.findUnique({ where: { nicknameLower } });
+      const nickname = nicknameOwner ? null : name;
+
+      const passwordHash = await bcrypt.hash(password, 10);
       const user = await prisma.user.create({
         data: {
-          email: body.email,
-          name: body.name,
+          email,
+          name,
           passwordHash,
-          avatarUrl: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(body.name)}`
+          nickname,
+          nicknameLower: nickname ? nicknameLower : null,
+          avatarUrl: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(name)}`
         }
       });
 
@@ -46,16 +61,19 @@ export function registerAuthRoutes(app: FastifyInstance) {
     "/auth/login",
     async (request, reply) => {
       const body = request.body as { email: string; password: string };
-      if (!body?.email || !body?.password) {
+      const email = body?.email?.trim().toLowerCase();
+      const password = body?.password;
+
+      if (!email || !password) {
         return reply.status(400).send({ message: "Invalid payload" });
       }
 
-      const user = await prisma.user.findUnique({ where: { email: body.email } });
+      const user = await prisma.user.findUnique({ where: { email } });
       if (!user) {
         return reply.status(401).send({ message: "Invalid credentials" });
       }
 
-      const ok = await bcrypt.compare(body.password, user.passwordHash);
+      const ok = await bcrypt.compare(password, user.passwordHash);
       if (!ok) {
         return reply.status(401).send({ message: "Invalid credentials" });
       }
