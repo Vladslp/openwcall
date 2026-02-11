@@ -32,7 +32,27 @@ export function registerAuthRoutes(app: FastifyInstance) {
           data: { nickname: null, nicknameLower: null }
         });
       } else {
-        return reply.status(409).send({ message: "Nickname is already in use" });
+        const activeUser = await prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            name: nickname,
+            nickname,
+            nicknameLower,
+            lastSeenAt: now,
+            avatarUrl: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(nickname)}`
+          }
+        });
+
+        const sessionToken = await issueSession(app, activeUser.id, nickname);
+        return reply.send({
+          sessionToken,
+          user: {
+            id: activeUser.id,
+            name: activeUser.name,
+            nickname: activeUser.nickname,
+            avatarUrl: activeUser.avatarUrl
+          }
+        });
       }
     }
 
