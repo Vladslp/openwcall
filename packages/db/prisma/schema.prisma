@@ -13,6 +13,7 @@ model User {
   name          String
   nickname      String?
   nicknameLower String?          @unique
+  lastSeenAt    DateTime         @default(now())
   status        String           @default("online")
   passwordHash  String
   avatarUrl     String?

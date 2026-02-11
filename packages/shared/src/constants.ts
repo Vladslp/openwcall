@@ -1,6 +1,6 @@
 export const TEXT = {
   appName: "OpenWCall",
-  loginTitle: "Sign in to OpenWCall",
+  loginTitle: "Вход по нику",
   lobbyTitle: "Lobby",
   roomsTitle: "Rooms",
   usersTitle: "Online Users",
