@@ -32,7 +32,7 @@ export function registerAuthRoutes(app: FastifyInstance) {
 
       const nicknameLower = normalizeNickname(name);
 
-      const existing = await prisma.user.findUnique({ where: { email } });
+      const existing = await findUserByNormalizedEmail(email);
       if (existing) {
         return reply.status(409).send({ message: "Email already registered" });
       }
@@ -68,7 +68,7 @@ export function registerAuthRoutes(app: FastifyInstance) {
         return reply.status(400).send({ message: "Invalid payload" });
       }
 
-      const user = await prisma.user.findUnique({ where: { email } });
+      const user = await findUserByNormalizedEmail(email);
       if (!user) {
         return reply.status(401).send({ message: "Invalid credentials" });
       }
@@ -181,4 +181,27 @@ async function findRefreshToken(refreshToken: string) {
     }
   }
   return null;
+}
+
+async function findUserByNormalizedEmail(email: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+
+  const normalizedMatch = await prisma.user.findUnique({ where: { email: normalizedEmail } });
+  if (normalizedMatch) {
+    return normalizedMatch;
+  }
+
+  const [legacyMatch] = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT "id"
+    FROM "User"
+    WHERE lower(btrim("email")) = ${normalizedEmail}
+    ORDER BY "createdAt" ASC
+    LIMIT 1
+  `;
+
+  if (!legacyMatch) {
+    return null;
+  }
+
+  return prisma.user.findUnique({ where: { id: legacyMatch.id } });
 }
