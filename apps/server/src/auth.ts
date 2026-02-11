@@ -1,207 +1,101 @@
 import type { FastifyInstance } from "fastify";
-import bcrypt from "bcryptjs";
-import { randomBytes } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { prisma } from "@openwcall/db";
-import { normalizeNickname } from "./social";
+import { normalizeNickname, validateNickname } from "./social";
 
-export interface JwtPayload {
+const NICKNAME_TTL_DAYS = 30;
+
+export interface SessionPayload {
   sub: string;
-  email: string;
-  name: string;
+  nickname: string;
 }
-
-const ACCESS_EXPIRES_IN = "15m";
-const REFRESH_EXPIRES_IN_DAYS = 30;
 
 export function registerAuthRoutes(app: FastifyInstance) {
-  app.post(
-    "/auth/register",
-    async (request, reply) => {
-      const body = request.body as { email: string; name: string; password: string };
-      const email = body?.email?.trim().toLowerCase();
-      const name = body?.name?.trim();
-      const password = body?.password;
+  app.post("/auth/nickname", async (request, reply) => {
+    const body = request.body as { nickname?: string };
+    const nickname = body?.nickname?.trim();
 
-      if (!email || !name || !password) {
-        return reply.status(400).send({ message: "Invalid payload" });
-      }
-
-      if (password.length < 6) {
-        return reply.status(400).send({ message: "Password must be at least 6 characters" });
-      }
-
-      const nicknameLower = normalizeNickname(name);
-
-      const existing = await findUserByNormalizedEmail(email);
-      if (existing) {
-        return reply.status(409).send({ message: "Email already registered" });
-      }
-
-      const nicknameOwner = await prisma.user.findUnique({ where: { nicknameLower } });
-      const nickname = nicknameOwner ? null : name;
-
-      const passwordHash = await bcrypt.hash(password, 10);
-      const user = await prisma.user.create({
-        data: {
-          email,
-          name,
-          passwordHash,
-          nickname,
-          nicknameLower: nickname ? nicknameLower : null,
-          avatarUrl: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(name)}`
-        }
-      });
-
-      const tokens = await issueTokens(app, user.id, user.email, user.name);
-      return reply.send(tokens);
+    if (!nickname || !validateNickname(nickname)) {
+      return reply.status(400).send({ message: "Invalid nickname" });
     }
-  );
 
-  app.post(
-    "/auth/login",
-    async (request, reply) => {
-      const body = request.body as { email: string; password: string };
-      const email = body?.email?.trim().toLowerCase();
-      const password = body?.password;
+    const nicknameLower = normalizeNickname(nickname);
+    const now = new Date();
+    const expiredBefore = new Date(now.getTime() - NICKNAME_TTL_DAYS * 24 * 60 * 60 * 1000);
 
-      if (!email || !password) {
-        return reply.status(400).send({ message: "Invalid payload" });
-      }
+    const existing = await prisma.user.findUnique({ where: { nicknameLower } });
 
-      const user = await findUserByNormalizedEmail(email);
-      if (!user) {
-        return reply.status(401).send({ message: "Invalid credentials" });
-      }
+    if (existing) {
+      if (existing.lastSeenAt < expiredBefore) {
+        await prisma.user.update({
+          where: { id: existing.id },
+          data: { nickname: null, nicknameLower: null }
+        });
+      } else {
+        const activeUser = await prisma.user.update({
+          where: { id: existing.id },
+          data: {
+            name: nickname,
+            nickname,
+            nicknameLower,
+            lastSeenAt: now,
+            avatarUrl: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(nickname)}`
+          }
+        });
 
-      const ok = await bcrypt.compare(password, user.passwordHash);
-      if (!ok) {
-        return reply.status(401).send({ message: "Invalid credentials" });
-      }
-
-      const tokens = await issueTokens(app, user.id, user.email, user.name);
-      return reply.send(tokens);
-    }
-  );
-
-  app.post(
-    "/auth/refresh",
-    async (request, reply) => {
-      const body = request.body as { refreshToken: string };
-      if (!body?.refreshToken) {
-        return reply.status(400).send({ message: "Missing refresh token" });
-      }
-
-      const stored = await findRefreshToken(body.refreshToken);
-
-      if (!stored || stored.revokedAt) {
-        return reply.status(401).send({ message: "Invalid refresh token" });
-      }
-
-      const user = await prisma.user.findUnique({ where: { id: stored.userId } });
-      if (!user) {
-        return reply.status(401).send({ message: "Invalid refresh token" });
-      }
-
-      const tokens = await issueTokens(app, user.id, user.email, user.name);
-      return reply.send(tokens);
-    }
-  );
-
-  app.post(
-    "/auth/logout",
-    async (request, reply) => {
-      const body = request.body as { refreshToken: string };
-      if (!body?.refreshToken) {
-        return reply.status(400).send({ message: "Missing refresh token" });
-      }
-
-      const stored = await findRefreshToken(body.refreshToken);
-      if (stored) {
-        await prisma.refreshToken.update({
-          where: { id: stored.id },
-          data: { revokedAt: new Date() }
+        const sessionToken = await issueSession(app, activeUser.id, nickname);
+        return reply.send({
+          sessionToken,
+          user: {
+            id: activeUser.id,
+            name: activeUser.name,
+            nickname: activeUser.nickname,
+            avatarUrl: activeUser.avatarUrl
+          }
         });
       }
-
-      return reply.send({ ok: true });
     }
-  );
+
+    const email = `nick-${randomUUID()}@nickname.local`;
+    const user = await prisma.user.create({
+      data: {
+        email,
+        name: nickname,
+        nickname,
+        nicknameLower,
+        passwordHash: "nickname-login",
+        avatarUrl: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(nickname)}`,
+        lastSeenAt: now
+      }
+    });
+
+    const sessionToken = await issueSession(app, user.id, nickname);
+    return reply.send({
+      sessionToken,
+      user: {
+        id: user.id,
+        name: user.name,
+        nickname: user.nickname,
+        avatarUrl: user.avatarUrl
+      }
+    });
+  });
 }
 
-export async function issueTokens(app: FastifyInstance, userId: string, email: string, name: string) {
-  const accessToken = await app.jwt.sign(
+export async function issueSession(app: FastifyInstance, userId: string, nickname: string) {
+  const sessionToken = await app.jwt.sign(
     {
       sub: userId,
-      email,
-      name
+      nickname
     },
     {
-      expiresIn: ACCESS_EXPIRES_IN
+      expiresIn: "30d"
     }
   );
 
-  const refreshToken = cryptoRandomString(48);
-  const tokenHash = await bcrypt.hash(refreshToken, 10);
-  await prisma.refreshToken.create({
-    data: {
-      tokenHash,
-      userId
-    }
-  });
-
-  return {
-    accessToken,
-    refreshToken,
-    expiresIn: ACCESS_EXPIRES_IN,
-    refreshExpiresInDays: REFRESH_EXPIRES_IN_DAYS,
-    user: {
-      id: userId,
-      email,
-      name
-    }
-  };
+  return sessionToken;
 }
 
 export function verifyToken(token: string, app: FastifyInstance) {
-  return app.jwt.verify<JwtPayload>(token);
-}
-
-function cryptoRandomString(length: number) {
-  return randomBytes(length).toString("base64url");
-}
-
-async function findRefreshToken(refreshToken: string) {
-  const tokens = await prisma.refreshToken.findMany({
-    where: { revokedAt: null }
-  });
-  for (const token of tokens) {
-    const match = await bcrypt.compare(refreshToken, token.tokenHash);
-    if (match) {
-      return token;
-    }
-  }
-  return null;
-}
-
-async function findUserByNormalizedEmail(email: string) {
-  const normalizedEmail = email.trim().toLowerCase();
-
-  const normalizedMatch = await prisma.user.findUnique({ where: { email: normalizedEmail } });
-  if (normalizedMatch) {
-    return normalizedMatch;
-  }
-
-  const [legacyMatch] = await prisma.$queryRaw<Array<{ id: string }>>`
-    SELECT "id"
-    FROM "User"
-    WHERE lower(btrim("email")) = ${normalizedEmail}
-    ORDER BY "createdAt" ASC
-    LIMIT 1
-  `;
-
-  if (!legacyMatch) {
-    return null;
-  }
-
-  return prisma.user.findUnique({ where: { id: legacyMatch.id } });
+  return app.jwt.verify<SessionPayload>(token);
 }

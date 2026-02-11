@@ -12,7 +12,6 @@ export const authOkSchema = z.object({
     id: z.string(),
     name: z.string(),
     nickname: z.string().optional().nullable(),
-    email: z.string(),
     avatarUrl: z.string().url().optional().nullable()
   })
 });

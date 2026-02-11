@@ -71,9 +71,14 @@ export function registerSocket(app: FastifyInstance, state: ServerState) {
         authHelloSchema.parse(payload);
         const tokenData = verifyToken(payload.token, app);
         const user = await prisma.user.findUnique({ where: { id: tokenData.sub } });
-        if (!user) return socket.emit(ServerToClientEvents.error, { code: "auth_failed", message: "Invalid token" });
+        if (!user || !user.nickname) return socket.emit(ServerToClientEvents.error, { code: "auth_failed", message: "Invalid token" });
+        const activeSocketId = state.socketByUserId.get(user.id);
+        if (activeSocketId && activeSocketId !== socket.id) {
+          return socket.emit(ServerToClientEvents.error, { code: "nickname_busy", message: "This nickname is already online" });
+        }
 
-        state.usersBySocket.set(socket.id, { userId: user.id, name: user.nickname ?? user.name, avatarUrl: user.avatarUrl, status: "online" });
+        await prisma.user.update({ where: { id: user.id }, data: { lastSeenAt: new Date() } });
+        state.usersBySocket.set(socket.id, { userId: user.id, name: user.nickname, avatarUrl: user.avatarUrl, status: "online" });
         state.socketByUserId.set(user.id, socket.id);
 
         const rooms = await prisma.room.findMany();
@@ -81,7 +86,7 @@ export function registerSocket(app: FastifyInstance, state: ServerState) {
           if (!state.rooms.has(room.id)) state.rooms.set(room.id, { roomId: room.id, name: room.name, isPublic: room.isPublic, locked: room.locked, hostId: room.hostId, passwordHash: room.passwordHash, participants: new Map() });
         }
 
-        socket.emit(ServerToClientEvents.authOk, { user: { id: user.id, email: user.email, name: user.name, avatarUrl: user.avatarUrl, nickname: user.nickname } });
+        socket.emit(ServerToClientEvents.authOk, { user: { id: user.id, name: user.name, avatarUrl: user.avatarUrl, nickname: user.nickname } });
         socket.emit(ServerToClientEvents.presenceList, { usersOnline: state.getPresenceList() });
         socket.emit(ServerToClientEvents.roomList, { rooms: state.getRoomList() });
         await emitFriendLists(socket, user.id);
@@ -341,13 +346,14 @@ export function registerSocket(app: FastifyInstance, state: ServerState) {
     socket.on(ClientToServerEvents.roomHostKick, (payload) => { const parsed = roomHostKickSchema.safeParse(payload); if (!parsed.success) return; const room = state.rooms.get(parsed.data.roomId); if (!room || room.hostId !== state.usersBySocket.get(socket.id)?.userId) return; room.participants.delete(parsed.data.targetUserId); });
     socket.on(ClientToServerEvents.roomHostLock, (payload) => { const parsed = roomHostLockSchema.safeParse(payload); if (!parsed.success) return; const room = state.rooms.get(parsed.data.roomId); if (!room || room.hostId !== state.usersBySocket.get(socket.id)?.userId) return; room.locked = parsed.data.locked; });
 
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async () => {
       const user = state.usersBySocket.get(socket.id);
       if (!user) return;
       for (const room of state.rooms.values()) {
         if (!room.participants.has(user.userId)) continue;
         removeUserFromRoom(io, room.roomId, user.userId, socket, state);
       }
+      await prisma.user.update({ where: { id: user.userId }, data: { lastSeenAt: new Date() } }).catch(() => undefined);
       state.usersBySocket.delete(socket.id);
       state.socketByUserId.delete(user.userId);
     });

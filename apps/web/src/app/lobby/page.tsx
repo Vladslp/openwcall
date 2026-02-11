@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { ClientToServerEvents, ServerToClientEvents, TEXT } from "@openwcall/shared";
 import { useAuthStore } from "../../store/auth";
 import { getSocket, disconnectSocket } from "../../lib/socket";
-import { logout } from "../../lib/api";
 
 interface RoomInfo {
   roomId: string;
@@ -24,7 +23,7 @@ interface OnlineUser {
 
 export default function LobbyPage() {
   const router = useRouter();
-  const { accessToken, refreshToken, user, clear } = useAuthStore();
+  const { accessToken, user, clear } = useAuthStore();
   const [rooms, setRooms] = useState<RoomInfo[]>([]);
   const [users, setUsers] = useState<OnlineUser[]>([]);
   const [showCreate, setShowCreate] = useState(false);
@@ -90,10 +89,7 @@ export default function LobbyPage() {
     router.push(`/room/${roomId}`);
   };
 
-  const handleSignOut = async () => {
-    if (refreshToken) {
-      await logout(refreshToken);
-    }
+  const handleSignOut = () => {
     clear();
     router.replace("/login");
   };
