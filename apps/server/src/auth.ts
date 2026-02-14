@@ -12,73 +12,85 @@ export interface SessionPayload {
 
 export function registerAuthRoutes(app: FastifyInstance) {
   app.post("/auth/nickname", async (request, reply) => {
-    const body = request.body as { nickname?: string };
-    const nickname = body?.nickname?.trim();
+    try {
+      const body = request.body as { nickname?: string };
+      const nickname = body?.nickname?.trim();
 
-    if (!nickname || !validateNickname(nickname)) {
-      return reply.status(400).send({ message: "Invalid nickname" });
+      if (!nickname || !validateNickname(nickname)) {
+        return reply.status(400).send({ message: "Invalid nickname" });
+      }
+
+      const nicknameLower = normalizeNickname(nickname);
+      const now = new Date();
+      const expiredBefore = new Date(now.getTime() - NICKNAME_TTL_DAYS * 24 * 60 * 60 * 1000);
+
+      const existing = await prisma.user.findUnique({ where: { nicknameLower } });
+
+      if (existing) {
+        if (existing.lastSeenAt < expiredBefore) {
+          await prisma.user.update({
+            where: { id: existing.id },
+            data: { nickname: null, nicknameLower: null }
+          });
+        } else {
+          const activeUser = await prisma.user.update({
+            where: { id: existing.id },
+            data: {
+              name: nickname,
+              nickname,
+              nicknameLower,
+              lastSeenAt: now,
+              avatarUrl: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(nickname)}`
+            }
+          });
+
+          const sessionToken = await issueSession(app, activeUser.id, nickname);
+          return reply.send({
+            sessionToken,
+            user: {
+              id: activeUser.id,
+              name: activeUser.name,
+              nickname: activeUser.nickname,
+              avatarUrl: activeUser.avatarUrl
+            }
+          });
+        }
+      }
+
+      const email = `nick-${randomUUID()}@nickname.local`;
+      const user = await prisma.user.create({
+        data: {
+          email,
+          name: nickname,
+          nickname,
+          nicknameLower,
+          passwordHash: "nickname-login",
+          avatarUrl: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(nickname)}`,
+          lastSeenAt: now
+        }
+      });
+
+      const sessionToken = await issueSession(app, user.id, nickname);
+      return reply.send({
+        sessionToken,
+        user: {
+          id: user.id,
+          name: user.name,
+          nickname: user.nickname,
+          avatarUrl: user.avatarUrl
+        }
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+
+      if (message.includes("Environment variable not found: DATABASE_URL")) {
+        request.log.error({ err: error }, "DATABASE_URL is missing");
+        return reply.status(503).send({ message: "Server is not configured. Please set DATABASE_URL." });
+      }
+
+      request.log.error({ err: error }, "Nickname authentication failed");
+      return reply.status(500).send({ message: "Unable to sign in right now." });
     }
-
-    const nicknameLower = normalizeNickname(nickname);
-    const now = new Date();
-    const expiredBefore = new Date(now.getTime() - NICKNAME_TTL_DAYS * 24 * 60 * 60 * 1000);
-
-    const existing = await prisma.user.findUnique({ where: { nicknameLower } });
-
-    if (existing) {
-      if (existing.lastSeenAt < expiredBefore) {
-        await prisma.user.update({
-          where: { id: existing.id },
-          data: { nickname: null, nicknameLower: null }
-        });
-      } else {
-        const activeUser = await prisma.user.update({
-          where: { id: existing.id },
-          data: {
-            name: nickname,
-            nickname,
-            nicknameLower,
-            lastSeenAt: now,
-            avatarUrl: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(nickname)}`
-          }
-        });
-
-        const sessionToken = await issueSession(app, activeUser.id, nickname);
-        return reply.send({
-          sessionToken,
-          user: {
-            id: activeUser.id,
-            name: activeUser.name,
-            nickname: activeUser.nickname,
-            avatarUrl: activeUser.avatarUrl
-          }
-        });
-      }
-    }
-
-    const email = `nick-${randomUUID()}@nickname.local`;
-    const user = await prisma.user.create({
-      data: {
-        email,
-        name: nickname,
-        nickname,
-        nicknameLower,
-        passwordHash: "nickname-login",
-        avatarUrl: `https://api.dicebear.com/7.x/shapes/svg?seed=${encodeURIComponent(nickname)}`,
-        lastSeenAt: now
-      }
-    });
-
-    const sessionToken = await issueSession(app, user.id, nickname);
-    return reply.send({
-      sessionToken,
-      user: {
-        id: user.id,
-        name: user.name,
-        nickname: user.nickname,
-        avatarUrl: user.avatarUrl
-      }
-    });
   });
 }
 
