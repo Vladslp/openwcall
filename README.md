@@ -25,7 +25,7 @@ OpenWCall is a WebRTC voice-calling app with rooms, direct calls, and Discord/Sk
 
 ### Server (`apps/server/.env.example`)
 
-- `DATABASE_URL`: PostgreSQL DSN.
+- `DATABASE_URL`: optional override DSN (not required for local SQLite dev).
 - `JWT_SECRET`: JWT signing key.
 - `PORT`: API/socket port (default `4000`).
 - `WEB_ORIGIN`: allowed web origin.
@@ -40,11 +40,10 @@ OpenWCall is a WebRTC voice-calling app with rooms, direct calls, and Discord/Sk
 
 ```bash
 pnpm install
-pnpm --filter @openwcall/db prisma:generate
-pnpm --filter @openwcall/db prisma:migrate
-pnpm --filter @openwcall/db prisma:seed
 pnpm dev
 ```
+
+`pnpm dev` now auto-runs local DB setup (`prisma generate` + `prisma db push` + seed) and creates a SQLite file at `packages/db/prisma/dev.db` if it does not exist.
 
 ## Socket events
 

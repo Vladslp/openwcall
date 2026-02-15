@@ -7,11 +7,12 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "pnpm -r dev",
+    "dev": "pnpm setup:local && pnpm -r dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
-    "format": "pnpm -r format"
+    "format": "pnpm -r format",
+    "setup:local": "pnpm --filter @openwcall/db prisma:generate && pnpm --filter @openwcall/db prisma:push && pnpm --filter @openwcall/db prisma:seed"
   },
   "devDependencies": {
     "typescript": "^5.4.5"

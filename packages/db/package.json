@@ -6,15 +6,17 @@
   "main": "src/client.ts",
   "scripts": {
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "prisma migrate dev",
-    "prisma:seed": "prisma db seed"
+    "prisma:migrate": "pnpm prisma:push",
+    "prisma:seed": "prisma db seed",
+    "prisma:push": "prisma db push"
   },
   "dependencies": {
     "@prisma/client": "^5.10.2"
   },
   "devDependencies": {
     "prisma": "^5.10.2",
-    "typescript": "^5.4.5"
+    "typescript": "^5.4.5",
+    "tsx": "^4.20.6"
   },
   "prisma": {
     "seed": "tsx prisma/seed.ts"
