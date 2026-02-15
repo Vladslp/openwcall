@@ -40,7 +40,7 @@ async function main() {
   await prisma.message.create({ data: { threadId: thread.id, senderId: bob.id, body: "Thanks! Testing reactions + edits now." } });
   const roomMsg = await prisma.message.create({ data: { roomId: room.id, senderId: bob.id, body: "Room text chat seeded with mention for @demo.user" } });
 
-  await prisma.notification.create({ data: { userId: alice.id, type: "mention", data: { roomId: room.id, messageId: roomMsg.id } } });
+  await prisma.notification.create({ data: { userId: alice.id, type: "mention", data: JSON.stringify({ roomId: room.id, messageId: roomMsg.id }) } });
 }
 
 main()
