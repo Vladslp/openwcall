@@ -362,15 +362,23 @@ export function registerSocket(app: FastifyInstance, state: ServerState) {
   return io;
 }
 
+function parseNotificationData(data: string) {
+  try {
+    return JSON.parse(data) as Record<string, unknown>;
+  } catch {
+    return {};
+  }
+}
+
 async function createNotification(userId: string, type: string, data: Record<string, unknown>) {
-  const n = await prisma.notification.create({ data: { userId, type, data } });
-  return { id: n.id, type: n.type, data: n.data, createdAt: n.createdAt.toISOString(), readAt: n.readAt?.toISOString() ?? null };
+  const n = await prisma.notification.create({ data: { userId, type, data: JSON.stringify(data) } });
+  return { id: n.id, type: n.type, data: parseNotificationData(n.data), createdAt: n.createdAt.toISOString(), readAt: n.readAt?.toISOString() ?? null };
 }
 
 async function emitNotificationList(socket: Socket, userId: string) {
   const notifications = await prisma.notification.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, take: 50 });
   socket.emit(ServerToClientEvents.notificationList, {
-    notifications: notifications.map((n) => ({ id: n.id, type: n.type, data: n.data, createdAt: n.createdAt.toISOString(), readAt: n.readAt?.toISOString() ?? null }))
+    notifications: notifications.map((n) => ({ id: n.id, type: n.type, data: parseNotificationData(n.data), createdAt: n.createdAt.toISOString(), readAt: n.readAt?.toISOString() ?? null }))
   });
 }
 
